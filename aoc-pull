@@ -1,0 +1,51 @@
+#!/usr/bin/env python
+import argparse
+parser = argparse.ArgumentParser()
+args = parser.parse_args()
+
+import datetime
+from zoneinfo import ZoneInfo
+import itertools
+import pathlib
+import sys
+import time
+
+import requests
+
+
+def challenge_dates():
+    for year in itertools.count(2015):
+        month = 12
+        for day in range(1, 25 + 1):
+            yield datetime.datetime(year, month, day, tzinfo=ZoneInfo("America/Detroit"))
+
+
+def sleep(s):
+    if isinstance(s, datetime.datetime):
+        s = s - datetime.datetime.now(tz=datetime.timezone.utc)
+    if isinstance(s, datetime.timedelta):
+        s = s.total_seconds()
+    s = max(s, 0)
+    time.sleep(s)
+    return s > 0
+
+
+s = requests.Session()
+
+with open('.cookie') as cookie:
+     s.cookies.set('session', cookie.read().strip(), domain='adventofcode.com')
+
+for date in challenge_dates():
+    print(date.date())
+    dest = pathlib.Path(f'{date.year:04}/{date.day:02}/.input')
+    if dest.exists():
+        continue
+    if sleep(date):
+        sleep(10)
+    with s.get(f'https://adventofcode.com/{date.year}/day/{date.day}/input', stream=True) as response:
+        response.raise_for_status()
+        dest.parent.mkdir(parents=True,exist_ok=True)
+        with dest.open('wb') as input_file:
+            for chunk in response.iter_content(chunk_size=None):
+                input_file.write(chunk)
+    sleep(60)
